@@ -1,0 +1,39 @@
+{"samples" : {
+		"FORWARD" : "LF2017_63_S8_L001_R1_001",
+		"REVERSE" : "LF2017_63_S8_L001_R2_001"
+							},
+	"directories" : {
+		"SAMPLE" : "sample",
+		"REFERENCE" : "reference",
+		"PIPDIR" : {
+	    "analysis" : "analysis",
+	    "mapped" : "analysis/mapped_reads",
+			"dup_metrics" : "analysis/dup_metrics",
+			"BQSR_metrics" : "analysis/recalibration_metrics"
+	    },
+		"TEMPDIR" : "temp",
+		"OUTDIR" : {
+      "out" : "out",
+      "fastqc" : "out/results_QC"
+    }
+	},
+	"tools" : {
+    "FASTQC" : {
+      "call" : "~/Application/FastQC.app/Contents/MacOS/fastqc"
+    },
+		"PICARD" : {
+			"SortSam" : {"call" : "java -Xmx2G -jar bin/picard.jar SortSam"},
+			"FixMateInformation" : {"call" : "java -Xmx2G -jar bin/picard.jar FixMateInformation"},
+			"MarkDuplicates" : {"call" : "java -Xmx2G -jar bin/picard.jar MarkDuplicates"}
+		},
+		"GATK" :	{
+			"RealignerTarget" : {"call" : "java -jar bin/GenomeAnalysisTK.jar -T RealignerTargetCreator"},
+			"IndelRealigner" : {"call" : "java -jar bin/GenomeAnalysisTK.jar -T IndelRealigner"},
+			"BaseRecalibrator" : {"call" : "java -jar bin/GenomeAnalysisTK.jar -T BaseRecalibrator"},
+			"PrintReads" : {"call" : "java -jar bin/GenomeAnalysisTK.jar -T PrintReads"}
+		},
+		"bwa_mem" : {
+			"call" : "bwa mem"
+		}
+	}
+}
