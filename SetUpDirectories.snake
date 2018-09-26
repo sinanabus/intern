@@ -1,0 +1,26 @@
+from pathlib import Path
+configfile : "config.json"
+#create necessary directories
+
+def Directories():
+    all_dirs = []
+    for dir in config["directories"]:
+        if  type(config["directories"][dir]) is not dict:
+            all_dirs.append(config["directories"][dir])
+        else:
+            for d in config["directories"][dir]:
+                all_dirs.append(config["directories"][dir][d])
+    return all_dirs
+
+rule target:
+    input:     
+        expand("{all_d}", all_d = Directories())
+
+rule create_Dirs:
+    output:
+        expand("{all_d}", all_d = Directories())
+    run:
+        for path in Directories():
+            dir = Path(path)
+            if (dir.is_dir() is not True):
+                shell("mkdir {dir}")

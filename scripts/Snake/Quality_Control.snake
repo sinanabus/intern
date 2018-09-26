@@ -1,0 +1,32 @@
+configfile: "config.json"
+
+
+rule insert_size_metrics:
+    input:
+        ref = expand("{PATH_REF}", PATH_REF = config["req_file_paths"]["REFERENCE"]),
+        recal_bam = expand("{BAMOUTDIR}/{sample_id}_sort_realign_matefix_dup_recal.bam", BAMOUTDIR = config["directories"]["PIPDIR"]["mapped"], sample_id = SAMPLE_ID)
+    output:
+        table = expand("{DIR_METRICS}/{sample_id}_metrics.insertSize.tsv", DIR_METRICS = config["directories"]["PIPDIR"]["metrics"], sample_id = SAMPLE_ID),
+        pdf = expand("{DIR_METRICS}/{sample_id}_metrics.insertSize.histo.pdf", DIR_METRICS = config["directories"]["PIPDIR"]["metrics"], sample_id = SAMPLE_ID)
+    shell:
+        "{config[tools][PICARD][CollectInsertSizeMetrics][call]} VALIDATION_STRINGENCY=SILENT" +
+        " REFERENCE_SEQUENCE={input.ref} INPUT={input.recal_bam} OUTPUT={output.table} HISTOGRAM_FILE={output.pdf}" +
+        " METRIC_ACCUMULATION_LEVEL=LIBRARY"
+#ASK ABOUT ADAPTER_SEQUENCE PARAMETER TO ALIGN_METRICS!!!!!!#######
+rule align_metrics:
+	input:
+		ref =expand("{PATH_REF}", PATH_REF = config["req_file_paths"]["REFERENCE"]),
+		recal_bam = expand("{BAMOUTDIR}/{sample_id}_sort_realign_matefix_dup_recal.bam", BAMOUTDIR = config["directories"]["PIPDIR"]["mapped"], sample_id = SAMPLE_ID)
+	output:
+	    	expand("{DIR_METRICS}/{sample_id}_metrics.align.tsv", DIR_METRICS = config["directories"]["PIPDIR"]["metrics"], sample_id = SAMPLE_ID)
+	shell:
+		"{config[tools][PICARD][CollectAlignmentSummaryMetrics][call]} VALIDATION_STRINGENCY=SILENT" +
+		" REFERENCE_SEQUENCE={input.ref} INPUT={input.recal_bam} OUTPUT={output}" +
+		" METRIC_ACCUMULATION_LEVEL=LIBRARY"
+
+'''
+java -Xmx2G -jar $PICARD CollectAlignmentSummaryMetrics VALIDATION_STRINGENCY=SILENT 
+REFERENCE_SEQUENCE=$databases/ensembl/v75/Homo_sapiens.GRCh37.75.dna.fa 
+INPUT=$s OUTPUT=$m.metric.alignment.tsv 
+METRIC_ACCUMULATION_LEVEL=LIBRARY;
+'''

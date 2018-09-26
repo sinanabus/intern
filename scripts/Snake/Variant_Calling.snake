@@ -1,0 +1,55 @@
+configfile :'config.json'
+
+#GENERATE MPILEUP
+rule mpileup:
+    input:
+        ref = expand("{PATH_REF}", PATH_REF = config["req_file_paths"]["REFERENCE"]),          
+        recalib_bam = expand("{BAMOUTDIR}/{sample_id}_sort_realign_matefix_dup_recal.bam", BAMOUTDIR = config["directories"]["PIPDIR"]["mapped"], sample_id = SAMPLE_ID)
+    output:
+        pileup = expand("{sample_id}_filtered.pileup", sample_id = SAMPLE_ID)
+    shell:
+        "{config[tools][samtools][pileup][call]} --no-BAQ --min-MQ 1 --output-tags AD,DP,SP --BCF --uncompressed --max-idepth 1000" +
+        " --fasta-ref {input.ref} {input.recalib_bam} --output {output.pileup}"
+
+
+
+
+#VARIANT CALLING
+'''
+rule VC_samtools:
+    input:
+        ref = expand("{PATH_REF}", PATH_REF = config["req_file_paths"]["REFERENCE"]),          
+        recalib_bam = expand("{BAMOUTDIR}/{sample_id}_sort_realign_matefix_dup_recal.bam", BAMOUTDIR = config["directories"]["PIPDIR"]["mapped"], sample_id = SAMPLE_ID)
+    output:
+        "LF2017_63_bcf.vcf"
+    shell:
+        "{config[tools][samtools][pileup][call]} --no-BAQ --min-MQ 1 --output-tags AD,DP,SP --BCF --uncompressed --max-idepth 1000" +
+        " -f {input.ref} {input.recalib_bam} | " +
+        "{config[tools][samtools][bcftools][varcall]} --multiallelic-caller --variants-only -> {output}"
+'''
+'''
+rule VC_Mutect2:
+    input:
+        ref =  expand("{PATH_REF}", PATH_REF = config["req_file_paths"]["REFERENCE"]),
+        recalib_bam = expand("{BAMOUTDIR}/{sample_id}_sort_realign_matefix_dup_recal.bam", BAMOUTDIR = config["directories"]["PIPDIR"]["mapped"], sample_id = SAMPLE_ID),
+        dbSNP = expand("{PATH_SNP_DB}", PATH_SNP_DB = config["req_file_paths"]["dbSNP"])
+    output:
+        "LF2017_63_mutect2.vcf"
+    shell:
+        "java -Xmx9G -jar bin/GenomeAnalysisTK.jar \
+         -T MuTect2 \
+         -R {input.ref} \
+         -I:tumor {input.recalib_bam} \
+         --dbsnp {input.dbSNP} \
+         -o {output}"
+'''
+
+rule VC_VarScan:
+    input:
+        pileup = expand("{sample_id}_filtered.pileup", sample_id = SAMPLE_ID)
+    output:
+        "LF2017_63_varscan.vcf"
+    shell:
+        "java -Xmx7G -jar bin/VarScan.jar pileup2snp \
+        {input.pileup} --min-coverage 150 --min-avg-qual 28 --p-value 0.95 \
+        >> {output}"

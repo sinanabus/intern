@@ -1,0 +1,70 @@
+configfile: 'config.json'
+
+#REALIGNMENT INDEL REGIONS
+rule realign_target:
+    input:
+        ref = expand("{PATH_REF}", PATH_REF = config["req_file_paths"]["REFERENCE"]),
+        sort_bam = expand("{bam_dir}/{sample_id}_sort.bam", bam_dir = config["directories"]["PIPDIR"]["mapped"], sample_id = SAMPLE_ID)
+    output:
+    # realign is created manually
+        expand("{TEMPINDIR}/{sample_id}_realign.intervals", TEMPINDIR = config["directories"]["TEMPDIR"],sample_id = SAMPLE_ID)
+    shell:
+        "{config[tools][GATK][RealignerTarget][call]} -R {input.ref} -I {input.sort_bam} -o {output}"
+
+#REALIGNMENT
+rule realign:
+    input:
+        ref = expand("{PATH_REF}", PATH_REF = config["req_file_paths"]["REFERENCE"]),
+        sort_bam = expand("{BAMOUTDIR}/{sample_id}_sort.bam", BAMOUTDIR = config["directories"]["PIPDIR"]["mapped"], sample_id = SAMPLE_ID),
+        realign_intervals = expand("{TEMPINDIR}/{sample_id}_realign.intervals", TEMPINDIR = config["directories"]["TEMPDIR"],sample_id = SAMPLE_ID)
+    output:
+        bam = expand("{BAMOUTDIR}/{sample_id}_sort_realign.bam", BAMOUTDIR = config["directories"]["PIPDIR"]["mapped"], sample_id = SAMPLE_ID),
+        bai = expand("{BAMOUTDIR}/{sample_id}_sort_realign.bai", BAMOUTDIR = config["directories"]["PIPDIR"]["mapped"], sample_id = SAMPLE_ID)
+    shell:
+        "{config[tools][GATK][IndelRealigner][call]} -R {input.ref} -I {input.sort_bam} -targetIntervals {input.realign_intervals} -o {output.bam}"
+
+#FIX PAIRED READ IDS
+rule fix_mate:
+    input:
+        realign_bam = expand("{BAMOUTDIR}/{sample_id}_sort_realign.bam", BAMOUTDIR = config["directories"]["PIPDIR"]["mapped"], sample_id = SAMPLE_ID)
+    output:
+        bam = expand("{BAMOUTDIR}/{sample_id}_sort_realign_matefix.bam", BAMOUTDIR = config["directories"]["PIPDIR"]["mapped"], sample_id = SAMPLE_ID),
+        bai = expand("{BAMOUTDIR}/{sample_id}_sort_realign_matefix.bai", BAMOUTDIR = config["directories"]["PIPDIR"]["mapped"], sample_id = SAMPLE_ID)
+    shell:
+        "{config[tools][PICARD][FixMateInformation][call]} VALIDATION_STRINGENCY=SILENT CREATE_INDEX=true SORT_ORDER=coordinate" +
+        " MAX_RECORDS_IN_RAM=500000 INPUT={input.realign_bam} OUTPUT={output.bam}"
+
+dup_file_name = expand("{dir_metrics}/{sample_id}_dup.metrics", dir_metrics = config["directories"]["PIPDIR"]["metrics"], sample_id = SAMPLE_ID)
+#DUP_METRICS = open(dup_file_name, "w")
+#REMOVE DUPLICATES
+rule remove_duplicates:
+    input:
+        mate_fixed_bam = expand("{BAMOUTDIR}/{sample_id}_sort_realign_matefix.bam", BAMOUTDIR = config["directories"]["PIPDIR"]["mapped"], sample_id = SAMPLE_ID)
+    output:
+        bam = expand("{BAMOUTDIR}/{sample_id}_sort_realign_matefix_dup.bam", BAMOUTDIR = config["directories"]["PIPDIR"]["mapped"], sample_id = SAMPLE_ID),
+        bai = expand("{BAMOUTDIR}/{sample_id}_sort_realign_matefix_dup.bai", BAMOUTDIR = config["directories"]["PIPDIR"]["mapped"], sample_id = SAMPLE_ID),
+    shell:
+        "{config[tools][PICARD][MarkDuplicates][call]} REMOVE_DUPLICATES=true"
+        + " CREATE_MD5_FILE=true VALIDATION_STRINGENCY=SILENT CREATE_INDEX=true INPUT={input.mate_fixed_bam} OUTPUT={output.bam} METRICS_FILE={dup_file_name}"
+
+#RECALIBRATE BASE SCORES
+rule recalibration_metrics:
+    input:
+        ref = expand("{PATH_REF}", PATH_REF = config["req_file_paths"]["REFERENCE"]),
+        dup_bam = expand("{BAMOUTDIR}/{sample_id}_sort_realign_matefix_dup.bam", BAMOUTDIR = config["directories"]["PIPDIR"]["mapped"], sample_id = SAMPLE_ID),
+        dbSNP = expand("{PATH_SNP_DB}", PATH_SNP_DB = config["req_file_paths"]["dbSNP"])
+    output:
+        expand("{BQSRDIR}/{sample_id}_bqsr.grp", BQSRDIR = config["directories"]["PIPDIR"]["metrics"], sample_id = SAMPLE_ID)
+    shell:
+        "{config[tools][GATK][BaseRecalibrator][call]} -R {input.ref} -I {input.dup_bam} -o {output} -knownSites {input.dbSNP}"
+
+rule recalibration:
+    input:
+        ref = expand("{PATH_REF}", PATH_REF = config["req_file_paths"]["REFERENCE"]),
+        dup_bam = expand("{BAMOUTDIR}/{sample_id}_sort_realign_matefix_dup.bam", BAMOUTDIR = config["directories"]["PIPDIR"]["mapped"], sample_id = SAMPLE_ID),
+        recalib_metrics = expand("{dir_metrics}/{sample_id}_bqsr.grp", dir_metrics = config["directories"]["PIPDIR"]["metrics"], sample_id = SAMPLE_ID)
+    output:
+        bam = expand("{BAMOUTDIR}/{sample_id}_sort_realign_matefix_dup_recal.bam", BAMOUTDIR = config["directories"]["PIPDIR"]["mapped"], sample_id = SAMPLE_ID),
+        bai = expand("{BAMOUTDIR}/{sample_id}_sort_realign_matefix_dup_recal.bai", BAMOUTDIR = config["directories"]["PIPDIR"]["mapped"], sample_id = SAMPLE_ID)
+    shell:
+        "{config[tools][GATK][PrintReads][call]} -R {input.ref} -I {input.dup_bam} -BQSR {input.recalib_metrics} -o {output.bam}"

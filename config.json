@@ -1,0 +1,62 @@
+{	"SETUP"  : true,
+	"samples" : {
+		"LANE1": {
+			"FORWARD" : "LF2017_63_S8_L001_R1_001",
+			"REVERSE" : "LF2017_63_S8_L001_R2_001"},
+		"LANE2" : {
+			"FORWARD" : "LF2017_63_S8_L002_R1_001",
+			"REVERSE" : "LF2017_63_S8_L002_R2_001"
+		}
+				},
+	"directories" : {
+		"SAMPLE" : "sample",
+		"REFERENCE" : "reference",
+		"BIN" : "bin",
+		"SCRIPTS" : {
+			"scripts" : "scripts",
+			"R" : "scripts/R",
+			"Python" : "scripts/Python",
+			"Snake" : "scripts/Snake"
+		},
+		"dbSNP" : "dbSNPs" ,
+		"PIPDIR" : {
+	    	"analysis" : "analysis",
+	    	"mapped" : "analysis/mapped_reads",
+			"metrics" : "analysis/metrics"
+	    },
+		"TEMPDIR" : "temp",
+		"OUTDIR" : {
+      "out" : "out",
+      "fastqc" : "out/results_QC/fastQC",
+      "insertSize" : "out/results_QC"
+    }
+	},
+	"req_file_paths" : {
+		"REFERENCE" : "reference/ucsc.hg19.fasta",
+		"dbSNP" : "dbSNPs/common_all_20180423_edit_2.vcf.gz"
+	},
+	"tools" : {
+    "FASTQC" : {"call" : "fastqc"},
+	"PICARD" : {
+			"SortSam" : {"call" : "java -Xmx2G -jar bin/picard.jar SortSam"},
+			"FixMateInformation" : {"call" : "java -Xmx2G -jar bin/picard.jar FixMateInformation"},
+			"MarkDuplicates" : {"call" : "java -Xmx2G -jar bin/picard.jar MarkDuplicates"},
+			"MergeSamFiles" : {"call" : "java -XX:ParallelGCThreads=2 -Xmx2G -jar bin/picard.jar MergeSamFiles"},
+			"CollectInsertSizeMetrics" : {"call" : "java -Xmx2G -jar bin/picard.jar CollectInsertSizeMetrics"},
+			"CollectAlignmentSummaryMetrics" : {"call" : "java -Xmx2G -jar bin/picard.jar CollectAlignmentSummaryMetrics"}
+		},
+	"GATK" : {
+			"RealignerTarget" : {"call" : "java -Xmx8G -jar bin/GenomeAnalysisTK.jar -T RealignerTargetCreator"},
+			"IndelRealigner" : {"call" : "java -Xmx8G -jar bin/GenomeAnalysisTK.jar -T IndelRealigner"},
+			"BaseRecalibrator" : {"call" : "java -Xmx8G -jar bin/GenomeAnalysisTK.jar -T BaseRecalibrator"},
+			"PrintReads" : {"call" : "java -Xmx8G -jar bin/GenomeAnalysisTK.jar -T PrintReads"}
+		},
+	"bwa_mem" : {
+			"call" : "bwa mem"
+		},
+	"samtools" : {
+			"pileup" : {"call" : "samtools mpileup"},
+			"bcftools" : {"varcall" : "bcftools call"}
+		}
+	}
+}

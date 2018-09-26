@@ -1,0 +1,2 @@
+Total number of Reads:	7651723
+Average insert size:	185.504221
